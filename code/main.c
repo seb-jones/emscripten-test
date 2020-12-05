@@ -1,8 +1,15 @@
+#include <stdbool.h>
+#include <stdlib.h>
+#include <stdio.h>
+
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_opengl.h>
+#include <SDL2/SDL_image.h>
+#include <GLES2/gl2.h>
 
 #include <emscripten.h>
 #include <emscripten/html5.h>
+
+#include "gl.c"
 
 SDL_Window *window;
 SDL_GLContext glcontext;
@@ -13,8 +20,83 @@ double previous_frame_start_time;
 double fps_timer = 0;
 int fps = 0;
 int current_fps = 0;
+int window_width = 640;
+int window_height = 480;
 
-void quit_sdl()
+GLuint texture = 0;
+GLuint program_object = 0;
+
+bool setup_sdl()
+{
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+
+    window = SDL_CreateWindow("EMCC Test", SDL_WINDOWPOS_CENTERED,
+                              SDL_WINDOWPOS_CENTERED, window_width,
+                              window_height, SDL_WINDOW_OPENGL);
+
+    glcontext = SDL_GL_CreateContext(window);
+
+    glEnable(GL_TEXTURE_2D);
+
+    keyboard_state = SDL_GetKeyboardState(&keyboard_state_size);
+
+    SDL_Surface *surface = IMG_Load("assets/player.png");
+
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, surface->w, surface->h, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, surface->pixels);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    SDL_FreeSurface(surface);
+
+    // SHADERS
+    char vertex_shader_code[] = "attribute vec4 vPosition;   \n"
+                                "void main()                 \n"
+                                "{                           \n"
+                                "   gl_Position = vPosition; \n"
+                                "}                           \n";
+
+    char fragment_shader_code[] =
+        "precision mediump float;                   \n"
+        "void main()                                \n"
+        "{                                          \n"
+        "  gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); \n"
+        "}                                          \n";
+
+    GLuint vertex_shader = load_shader(vertex_shader_code, GL_VERTEX_SHADER);
+
+    GLuint fragment_shader =
+        load_shader(fragment_shader_code, GL_FRAGMENT_SHADER);
+
+    program_object = glCreateProgram();
+
+    if (program_object == 0) return false;
+
+    glAttachShader(program_object, vertex_shader);
+    glAttachShader(program_object, fragment_shader);
+
+    glBindAttribLocation(program_object, 0, "vPosition");
+
+    glLinkProgram(program_object);
+
+    // Check link status
+    GLint linked;
+    glGetProgramiv(program_object, GL_LINK_STATUS, &linked);
+
+    if (!linked) {
+        fprintf(stderr, "setup_sdl: error linking GL program\n");
+        glDeleteProgram(program_object);
+        return false;
+    }
+
+    return true;
+}
+
+void cleanup_sdl()
 {
     SDL_GL_DeleteContext(glcontext);
     SDL_DestroyWindow(window);
@@ -38,12 +120,35 @@ EM_BOOL main_loop(double time, void *user_data)
     SDL_PumpEvents();
 
     if (keyboard_state[SDL_SCANCODE_Q]) {
-        quit_sdl();
+        cleanup_sdl();
         return EM_FALSE;
     }
 
-    glClearColor(0.9, 0.0, 0.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
+    // Draw Triangle
+    {
+        GLfloat vertices[] = {0.0f, 0.5f, 0.0f,  -0.5f, -0.5f,
+                              0.0f, 0.5f, -0.5f, 0.0f};
+
+        GLuint vertex_pos_buffer;
+        glGenBuffers(1, &vertex_pos_buffer);
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_pos_buffer);
+        glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(*vertices), vertices,
+                     GL_STATIC_DRAW);
+
+        glViewport(0, 0, window_width, window_height);
+
+        glClearColor(0.1, 0.3, 0.1, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glUseProgram(program_object);
+
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_pos_buffer);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(0);
+
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+    }
+
     SDL_GL_SwapWindow(window);
 
     ++fps;
@@ -53,20 +158,9 @@ EM_BOOL main_loop(double time, void *user_data)
 
 int main(int argc, char *argv[])
 {
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-
-    int window_width = 1280;
-    int window_height = 720;
-
-    window = SDL_CreateWindow("EMCC Test", SDL_WINDOWPOS_CENTERED,
-                              SDL_WINDOWPOS_CENTERED, window_width,
-                              window_height, SDL_WINDOW_OPENGL);
-
-    glcontext = SDL_GL_CreateContext(window);
+    if (!setup_sdl()) return 1;
 
     frame_start_time = emscripten_performance_now();
-
-    keyboard_state = SDL_GetKeyboardState(&keyboard_state_size);
 
     emscripten_request_animation_frame_loop(main_loop, NULL);
 
