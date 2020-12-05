@@ -93,6 +93,8 @@ bool setup_sdl()
         return false;
     }
 
+    glReleaseShaderCompiler();
+
     return true;
 }
 
