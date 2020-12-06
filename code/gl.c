@@ -34,3 +34,23 @@ GLuint load_shader(const char *shader_code, GLenum type)
 
     return shader;
 }
+
+GLuint load_shader_from_file(const char *filename, GLenum type)
+{
+    FILE *file = fopen(filename, "r");
+    assert(file);
+
+    fseek(file, 0, SEEK_END);
+    int size = ftell(file);
+    rewind(file);
+
+    char *code = (char *)malloc(sizeof(char) * size);
+    assert(code);
+
+    size_t read = fread(code, 1, size, file);
+    assert(read == size);
+
+    if (!code) return 0;
+
+    return load_shader(code, type);
+}

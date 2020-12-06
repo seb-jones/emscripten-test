@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -36,7 +37,7 @@ bool setup_sdl()
 
     glcontext = SDL_GL_CreateContext(window);
 
-    glEnable(GL_TEXTURE_2D);
+    /* glEnable(GL_TEXTURE_2D); */
 
     keyboard_state = SDL_GetKeyboardState(&keyboard_state_size);
 
@@ -54,23 +55,11 @@ bool setup_sdl()
     SDL_FreeSurface(surface);
 
     // SHADERS
-    char vertex_shader_code[] = "attribute vec4 vPosition;   \n"
-                                "void main()                 \n"
-                                "{                           \n"
-                                "   gl_Position = vPosition; \n"
-                                "}                           \n";
-
-    char fragment_shader_code[] =
-        "precision mediump float;                   \n"
-        "void main()                                \n"
-        "{                                          \n"
-        "  gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); \n"
-        "}                                          \n";
-
-    GLuint vertex_shader = load_shader(vertex_shader_code, GL_VERTEX_SHADER);
+    GLuint vertex_shader =
+        load_shader_from_file("shaders/vertex.glsl", GL_VERTEX_SHADER);
 
     GLuint fragment_shader =
-        load_shader(fragment_shader_code, GL_FRAGMENT_SHADER);
+        load_shader_from_file("shaders/fragment.glsl", GL_FRAGMENT_SHADER);
 
     program_object = glCreateProgram();
 
