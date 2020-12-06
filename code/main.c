@@ -63,7 +63,7 @@ bool setup_sdl()
 
     assert((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG);
 
-    const char *image_filename = "assets/player.png";
+    const char *image_filename = "assets/images/player.png";
 
     SDL_Surface *surface = IMG_Load(image_filename);
 
@@ -108,7 +108,10 @@ bool setup_sdl()
                                 "    tex_coord_v = tex_coord;\n"
                                 "}";
 
-    GLuint vertex_shader = load_shader(vertex_shader_code, GL_VERTEX_SHADER);
+    /* GLuint vertex_shader = load_shader(vertex_shader_code, GL_VERTEX_SHADER); */
+
+    GLuint vertex_shader =
+        load_shader_from_file("assets/shaders/vertex.glsl", GL_VERTEX_SHADER);
 
     char fragment_shader_code[] =
         "precision mediump float;\n"
@@ -119,8 +122,11 @@ bool setup_sdl()
         "    gl_FragColor = texture2D(sampler, tex_coord_v);\n"
         "}";
 
-    GLuint fragment_shader =
-        load_shader(fragment_shader_code, GL_FRAGMENT_SHADER);
+    /* GLuint fragment_shader = */
+    /*     load_shader(fragment_shader_code, GL_FRAGMENT_SHADER); */
+
+    GLuint fragment_shader = load_shader_from_file(
+        "assets/shaders/fragment.glsl", GL_FRAGMENT_SHADER);
 
     program_object = glCreateProgram();
 
@@ -217,15 +223,15 @@ EM_BOOL main_loop(double time, void *user_data)
     }
 
     if (keyboard_state[SDL_SCANCODE_LEFT]) {
-        camera_x -= 0.1f;
+        camera_x -= 0.05f;
     } else if (keyboard_state[SDL_SCANCODE_RIGHT]) {
-        camera_x += 0.1f;
+        camera_x += 0.05f;
     }
 
     if (keyboard_state[SDL_SCANCODE_UP]) {
-        camera_y += 0.1f;
+        camera_y += 0.05f;
     } else if (keyboard_state[SDL_SCANCODE_DOWN]) {
-        camera_y -= 0.1f;
+        camera_y -= 0.05f;
     }
 
     // Draw Triangle
