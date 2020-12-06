@@ -23,6 +23,8 @@ int fps = 0;
 int current_fps = 0;
 int window_width = 640;
 int window_height = 480;
+float camera_x = 0;
+float camera_y = 0;
 
 GLuint texture = 0;
 GLuint program_object = 0;
@@ -68,7 +70,7 @@ bool setup_sdl()
     glAttachShader(program_object, vertex_shader);
     glAttachShader(program_object, fragment_shader);
 
-    glBindAttribLocation(program_object, 0, "vPosition");
+    glBindAttribLocation(program_object, 0, "position");
 
     glLinkProgram(program_object);
 
@@ -115,8 +117,21 @@ EM_BOOL main_loop(double time, void *user_data)
         return EM_FALSE;
     }
 
+    if (keyboard_state[SDL_SCANCODE_LEFT]) {
+        camera_x -= 0.1f;
+    } else if (keyboard_state[SDL_SCANCODE_RIGHT]) {
+        camera_x += 0.1f;
+    }
+
+    if (keyboard_state[SDL_SCANCODE_UP]) {
+        camera_y -= 0.1f;
+    } else if (keyboard_state[SDL_SCANCODE_DOWN]) {
+        camera_y += 0.1f;
+    }
+
     // Draw Triangle
     {
+        // Load vertices into VBO
         GLfloat vertices[] = {0.0f, 0.5f, 0.0f,  -0.5f, -0.5f,
                               0.0f, 0.5f, -0.5f, 0.0f};
 
@@ -126,6 +141,7 @@ EM_BOOL main_loop(double time, void *user_data)
         glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(*vertices), vertices,
                      GL_STATIC_DRAW);
 
+        // Set viewport and clear screen
         glViewport(0, 0, window_width, window_height);
 
         glClearColor(0.1, 0.3, 0.1, 1.0);
@@ -133,10 +149,19 @@ EM_BOOL main_loop(double time, void *user_data)
 
         glUseProgram(program_object);
 
+        // Pass camera to shader as translation
+        {
+            GLint location =
+                glGetUniformLocation(program_object, "translation");
+            glUniform2f(location, camera_x, camera_y);
+        }
+
+        // Pass positions to shader
         glBindBuffer(GL_ARRAY_BUFFER, vertex_pos_buffer);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(0);
 
+        // Draw
         glDrawArrays(GL_TRIANGLES, 0, 3);
     }
 
