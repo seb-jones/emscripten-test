@@ -164,17 +164,17 @@ bool setup_sdl()
                  GL_STATIC_DRAW);
 
     GLfloat tex_coords[] = {
-        1.0f, 1.0f,
+        1.0f, 0.0f,
+
+        0.0f, 0.0f,
 
         0.0f, 1.0f,
 
-        0.0f, 0.0f,
+        1.0f, 0.0f,
+
+        0.0f, 1.0f,
 
         1.0f, 1.0f,
-
-        0.0f, 0.0f,
-
-        1.0f, 0.0f,
     };
 
     glGenBuffers(1, &texcoord_buffer);
