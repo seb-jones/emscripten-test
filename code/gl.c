@@ -52,5 +52,11 @@ GLuint load_shader_from_file(const char *filename, GLenum type)
 
     if (!code) return 0;
 
-    return load_shader(code, type);
+    if (load_shader(code, type) == 0) {
+        fprintf(stderr,
+                "load_shader_from_file: error compiling shader file '%s'\n",
+                filename);
+    }
+
+    return 0;
 }

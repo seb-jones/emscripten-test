@@ -28,6 +28,7 @@ float camera_y = 0;
 
 GLuint texture = 0;
 GLuint program_object = 0;
+GLuint vertex_pos_buffer, texcoord_buffer;
 
 bool setup_sdl()
 {
@@ -39,7 +40,7 @@ bool setup_sdl()
 
     glcontext = SDL_GL_CreateContext(window);
 
-    /* glEnable(GL_TEXTURE_2D); */
+    glEnable(GL_TEXTURE_2D);
 
     // Try adaptive vsync
     if (SDL_GL_SetSwapInterval(-1) == -1) {
@@ -57,9 +58,20 @@ bool setup_sdl()
 
     keyboard_state = SDL_GetKeyboardState(&keyboard_state_size);
 
-    SDL_Surface *surface = IMG_Load("assets/player.png");
+    assert((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG);
+
+    const char *image_filename = "assets/player.png";
+
+    SDL_Surface *surface = IMG_Load(image_filename);
+
+    if (!surface) {
+        fprintf(stderr, "setup_sdl: IMG_Load '%s': %s\n", image_filename,
+                IMG_GetError());
+        return false;
+    }
 
     glGenTextures(1, &texture);
+
     glBindTexture(GL_TEXTURE_2D, texture);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, surface->w, surface->h, 0, GL_RGBA,
@@ -67,15 +79,35 @@ bool setup_sdl()
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     SDL_FreeSurface(surface);
 
     // SHADERS
-    GLuint vertex_shader =
-        load_shader_from_file("shaders/vertex.glsl", GL_VERTEX_SHADER);
+    char vertex_shader_code[] = "uniform vec4 translation;\n"
+                                "attribute vec4 position;\n"
+                                "attribute vec2 tex_coord;\n"
+                                "varying vec2 tex_coord_v;\n"
+                                "void main()\n"
+                                "{\n"
+                                "    gl_Position = position - translation;\n"
+                                "    tex_coord_v = tex_coord;\n"
+                                "}";
+
+    GLuint vertex_shader = load_shader(vertex_shader_code, GL_VERTEX_SHADER);
+
+    char fragment_shader_code[] =
+        "precision mediump float;\n"
+        "varying vec2 tex_coord_v;\n"
+        "uniform sampler2D sampler;\n"
+        "void main()\n"
+        "{\n"
+        "    gl_FragColor = texture2D(sampler, tex_coord_v);\n"
+        "}";
 
     GLuint fragment_shader =
-        load_shader_from_file("shaders/fragment.glsl", GL_FRAGMENT_SHADER);
+        load_shader(fragment_shader_code, GL_FRAGMENT_SHADER);
 
     program_object = glCreateProgram();
 
@@ -85,6 +117,7 @@ bool setup_sdl()
     glAttachShader(program_object, fragment_shader);
 
     glBindAttribLocation(program_object, 0, "position");
+    glBindAttribLocation(program_object, 1, "tex_coord");
 
     glLinkProgram(program_object);
 
@@ -99,6 +132,22 @@ bool setup_sdl()
     }
 
     glReleaseShaderCompiler();
+
+    // VBOs
+    GLfloat vertices[] = {0.0f, 0.5f, 0.0f,  -0.5f, -0.5f,
+                          0.0f, 0.5f, -0.5f, 0.0f};
+
+    glGenBuffers(1, &vertex_pos_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_pos_buffer);
+    glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(*vertices), vertices,
+                 GL_STATIC_DRAW);
+
+    GLfloat tex_coords[] = {0.5f, 0.1f, 0.0f, 0.0f, 1.0f, 0.0f};
+
+    glGenBuffers(1, &texcoord_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer);
+    glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(*tex_coords), tex_coords,
+                 GL_STATIC_DRAW);
 
     return true;
 }
@@ -145,16 +194,6 @@ EM_BOOL main_loop(double time, void *user_data)
 
     // Draw Triangle
     {
-        // Load vertices into VBO
-        GLfloat vertices[] = {0.0f, 0.5f, 0.0f,  -0.5f, -0.5f,
-                              0.0f, 0.5f, -0.5f, 0.0f};
-
-        GLuint vertex_pos_buffer;
-        glGenBuffers(1, &vertex_pos_buffer);
-        glBindBuffer(GL_ARRAY_BUFFER, vertex_pos_buffer);
-        glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(*vertices), vertices,
-                     GL_STATIC_DRAW);
-
         // Set viewport and clear screen
         glViewport(0, 0, window_width, window_height);
 
@@ -163,17 +202,30 @@ EM_BOOL main_loop(double time, void *user_data)
 
         glUseProgram(program_object);
 
-        // Pass camera to shader as translation
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        // Uniforms
         {
             GLint location =
                 glGetUniformLocation(program_object, "translation");
+
             glUniform4f(location, camera_x, camera_y, 0, 0);
+
+            location = glGetUniformLocation(program_object, "sampler");
+
+            glUniform1i(location, 0);
         }
 
         // Pass positions to shader
         glBindBuffer(GL_ARRAY_BUFFER, vertex_pos_buffer);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(0);
+
+        // Pass tex_coords to shader
+        glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(1);
 
         // Draw
         glDrawArrays(GL_TRIANGLES, 0, 3);
