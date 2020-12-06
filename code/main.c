@@ -134,19 +134,42 @@ bool setup_sdl()
     glReleaseShaderCompiler();
 
     // VBOs
-    GLfloat vertices[] = {0.0f, 0.5f, 0.0f,  -0.5f, -0.5f,
-                          0.0f, 0.5f, -0.5f, 0.0f};
+    GLfloat vertices[] = {
+        0.5f,  0.5f,  0.0f,
+
+        -0.5f, 0.5f,  0.0f,
+
+        -0.5f, -0.5f, 0.0f,
+
+        0.5f,  0.5f,  0.0f,
+
+        -0.5f, -0.5f, 0.0f,
+
+        0.5f,  -0.5f, 0.0f,
+    };
 
     glGenBuffers(1, &vertex_pos_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_pos_buffer);
-    glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(*vertices), vertices,
+    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(*vertices), vertices,
                  GL_STATIC_DRAW);
 
-    GLfloat tex_coords[] = {0.5f, 0.1f, 0.0f, 0.0f, 1.0f, 0.0f};
+    GLfloat tex_coords[] = {
+        1.0f, 1.0f,
+
+        0.0f, 1.0f,
+
+        0.0f, 0.0f,
+
+        1.0f, 1.0f,
+
+        0.0f, 0.0f,
+
+        1.0f, 0.0f,
+    };
 
     glGenBuffers(1, &texcoord_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer);
-    glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(*tex_coords), tex_coords,
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(*tex_coords), tex_coords,
                  GL_STATIC_DRAW);
 
     return true;
@@ -228,7 +251,7 @@ EM_BOOL main_loop(double time, void *user_data)
         glEnableVertexAttribArray(1);
 
         // Draw
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
     }
 
     SDL_GL_SwapWindow(window);
