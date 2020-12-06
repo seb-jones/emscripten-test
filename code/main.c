@@ -41,6 +41,9 @@ bool setup_sdl()
     glcontext = SDL_GL_CreateContext(window);
 
     glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Try adaptive vsync
     if (SDL_GL_SetSwapInterval(-1) == -1) {
@@ -230,7 +233,7 @@ EM_BOOL main_loop(double time, void *user_data)
         // Set viewport and clear screen
         glViewport(0, 0, window_width, window_height);
 
-        glClearColor(0.1, 0.3, 0.1, 1.0);
+        glClearColor(0.3, 0.3, 0.4, 1.0);
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(program_object);
