@@ -98,32 +98,8 @@ bool setup_sdl()
     SDL_FreeSurface(surface);
 
     // SHADERS
-    char vertex_shader_code[] = "uniform vec4 translation;\n"
-                                "attribute vec4 position;\n"
-                                "attribute vec2 tex_coord;\n"
-                                "varying vec2 tex_coord_v;\n"
-                                "void main()\n"
-                                "{\n"
-                                "    gl_Position = position - translation;\n"
-                                "    tex_coord_v = tex_coord;\n"
-                                "}";
-
-    /* GLuint vertex_shader = load_shader(vertex_shader_code, GL_VERTEX_SHADER); */
-
     GLuint vertex_shader =
         load_shader_from_file("assets/shaders/vertex.glsl", GL_VERTEX_SHADER);
-
-    char fragment_shader_code[] =
-        "precision mediump float;\n"
-        "varying vec2 tex_coord_v;\n"
-        "uniform sampler2D sampler;\n"
-        "void main()\n"
-        "{\n"
-        "    gl_FragColor = texture2D(sampler, tex_coord_v);\n"
-        "}";
-
-    /* GLuint fragment_shader = */
-    /*     load_shader(fragment_shader_code, GL_FRAGMENT_SHADER); */
 
     GLuint fragment_shader = load_shader_from_file(
         "assets/shaders/fragment.glsl", GL_FRAGMENT_SHADER);

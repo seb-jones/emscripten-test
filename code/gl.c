@@ -52,13 +52,23 @@ GLuint load_shader_from_file(const char *filename, GLenum type)
 
     if (!code) return 0;
 
-    printf("%s\n", code);
+    // Remove any non-ascii characters
+    {
+        uint8_t *write = (uint8_t *)code;
 
-    if (load_shader(code, type) == 0) {
+        while (*write != '\0' && *write <= 127) ++write;
+
+        if (*write != '\0') *write = '\0';
+    }
+
+    GLuint shader = load_shader(code, type);
+
+    if (!shader) {
         fprintf(stderr,
                 "load_shader_from_file: error compiling shader file '%s'\n",
                 filename);
+        return 0;
     }
 
-    return 0;
+    return shader;
 }
