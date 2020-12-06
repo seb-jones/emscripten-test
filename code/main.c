@@ -41,6 +41,20 @@ bool setup_sdl()
 
     /* glEnable(GL_TEXTURE_2D); */
 
+    // Try adaptive vsync
+    if (SDL_GL_SetSwapInterval(-1) == -1) {
+        fprintf(stderr,
+                "main: SDL_GL_SetSwapInterval: Error setting adaptive "
+                "vsync: '%s'. Trying regular vsync.\n",
+                SDL_GetError());
+        // Try regular vsync
+        if (SDL_GL_SetSwapInterval(1) == -1) {
+            // vsync not supported
+            fprintf(stderr, "main: SDL_GL_SetSwapInterval: '%s'\n",
+                    SDL_GetError());
+        }
+    }
+
     keyboard_state = SDL_GetKeyboardState(&keyboard_state_size);
 
     SDL_Surface *surface = IMG_Load("assets/player.png");
@@ -124,9 +138,9 @@ EM_BOOL main_loop(double time, void *user_data)
     }
 
     if (keyboard_state[SDL_SCANCODE_UP]) {
-        camera_y -= 0.1f;
-    } else if (keyboard_state[SDL_SCANCODE_DOWN]) {
         camera_y += 0.1f;
+    } else if (keyboard_state[SDL_SCANCODE_DOWN]) {
+        camera_y -= 0.1f;
     }
 
     // Draw Triangle
