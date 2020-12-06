@@ -70,6 +70,16 @@ bool setup_sdl()
         return false;
     }
 
+    if (surface->format->format != SDL_PIXELFORMAT_RGBA32) {
+        SDL_Surface *converted_surface =
+            SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
+        assert(converted_surface);
+
+        SDL_FreeSurface(surface);
+
+        surface = converted_surface;
+    }
+
     glGenTextures(1, &texture);
 
     glBindTexture(GL_TEXTURE_2D, texture);
