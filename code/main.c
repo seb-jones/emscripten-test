@@ -167,7 +167,7 @@ EM_BOOL main_loop(double time, void *user_data)
         {
             GLint location =
                 glGetUniformLocation(program_object, "translation");
-            glUniform2f(location, camera_x, camera_y);
+            glUniform4f(location, camera_x, camera_y, 0, 0);
         }
 
         // Pass positions to shader
