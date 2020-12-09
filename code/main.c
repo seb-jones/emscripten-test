@@ -177,7 +177,7 @@ bool setup_sdl()
     // Audio
     int frequency = 48000;
 
-    if (Mix_OpenAudio(frequency, MIX_DEFAULT_FORMAT, 2, 1024) == -1) {
+    if (Mix_OpenAudio(frequency, MIX_DEFAULT_FORMAT, 2, 4096) == -1) {
         fprintf(stderr, "setup_sdl: Mix_OpenAudio: %s\n", Mix_GetError());
         return false;
     }
