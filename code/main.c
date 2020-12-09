@@ -175,7 +175,15 @@ bool setup_sdl()
                  GL_STATIC_DRAW);
 
     // Audio
-    int frequency = 48000;
+    int frequency = frequency = EM_ASM_INT_V({
+        var context;
+        try {
+            context = new AudioContext();
+        } catch (e) {
+            context = new webkitAudioContext(); // safari only
+        }
+        return context.sampleRate;
+    });
 
     if (Mix_OpenAudio(frequency, MIX_DEFAULT_FORMAT, 2, 4096) == -1) {
         fprintf(stderr, "setup_sdl: Mix_OpenAudio: %s\n", Mix_GetError());
