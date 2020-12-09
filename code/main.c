@@ -5,6 +5,7 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <SDL2/SDL_mixer.h>
 #include <GLES2/gl2.h>
 
 #include <emscripten.h>
@@ -30,9 +31,16 @@ GLuint texture = 0;
 GLuint program_object = 0;
 GLuint vertex_pos_buffer, texcoord_buffer;
 
+Mix_Music *music = NULL;
+Mix_Chunk *wave = NULL;
+int channel = -1;
+
 bool setup_sdl()
 {
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+        fprintf(stderr, "setup_sdl: SDL_Init: %s\n", SDL_GetError());
+        return false;
+    }
 
     window = SDL_CreateWindow("EMCC Test", SDL_WINDOWPOS_CENTERED,
                               SDL_WINDOWPOS_CENTERED, window_width,
@@ -61,7 +69,7 @@ bool setup_sdl()
 
     keyboard_state = SDL_GetKeyboardState(&keyboard_state_size);
 
-    assert((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG);
+    assert(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG);
 
     const char *image_filename = "assets/images/player.png";
 
@@ -122,7 +130,6 @@ bool setup_sdl()
 
     if (!linked) {
         fprintf(stderr, "setup_sdl: error linking GL program\n");
-        glDeleteProgram(program_object);
         return false;
     }
 
@@ -167,11 +174,44 @@ bool setup_sdl()
     glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(*tex_coords), tex_coords,
                  GL_STATIC_DRAW);
 
+    // Audio
+    int frequency = 48000;
+
+    if (Mix_OpenAudio(frequency, MIX_DEFAULT_FORMAT, 2, 1024) == -1) {
+        fprintf(stderr, "setup_sdl: Mix_OpenAudio: %s\n", Mix_GetError());
+        return false;
+    }
+
+    Mix_Init(MIX_INIT_OGG);
+    if (!(Mix_Init(MIX_INIT_OGG) & MIX_INIT_OGG)) {
+        fprintf(stderr, "setup_sdl: Mix_Init: %s\n", Mix_GetError());
+        return false;
+    }
+
+    music = Mix_LoadMUS("./assets/audio/music.ogg");
+    if (music == NULL) {
+        fprintf(stderr, "setup_sdl: Mix_LoadMUS: %s\n", Mix_GetError());
+        return false;
+    }
+
+    wave = Mix_LoadWAV("./assets/audio/sound.wav");
+    if (wave == NULL) {
+        fprintf(stderr, "setup_sdl: Mix_LoadWAV: %s\n", Mix_GetError());
+        return false;
+    }
+
+    if (Mix_PlayMusic(music, -1) < 0) {
+        fprintf(stderr, "setup_sdl: Mix_PlayMusic: %s\n", Mix_GetError());
+        return -1;
+    }
+
     return true;
 }
 
 void cleanup_sdl()
 {
+    Mix_Quit();
+    Mix_CloseAudio();
     SDL_GL_DeleteContext(glcontext);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -196,6 +236,13 @@ EM_BOOL main_loop(double time, void *user_data)
     if (keyboard_state[SDL_SCANCODE_Q]) {
         cleanup_sdl();
         return EM_FALSE;
+    }
+
+    if (keyboard_state[SDL_SCANCODE_SPACE] &&
+        (channel == -1 || !Mix_Playing(channel)))
+    {
+        printf("meep\n");
+        channel = Mix_PlayChannel(-1, wave, 0);
     }
 
     if (keyboard_state[SDL_SCANCODE_LEFT]) {
@@ -258,7 +305,10 @@ EM_BOOL main_loop(double time, void *user_data)
 
 int main(int argc, char *argv[])
 {
-    if (!setup_sdl()) return 1;
+    if (!setup_sdl()) {
+        cleanup_sdl();
+        return 1;
+    }
 
     frame_start_time = emscripten_performance_now();
 
