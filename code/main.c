@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_mixer.h>
@@ -34,6 +37,23 @@ GLuint vertex_pos_buffer, texcoord_buffer;
 Mix_Music *music = NULL;
 Mix_Chunk *wave = NULL;
 int channel = -1;
+
+FT_Library library;
+GLuint font = 0;
+
+// https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+uint32_t round_up_to_power_of_two(uint32_t v)
+{
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v++;
+
+    return v;
+}
 
 bool setup_sdl()
 {
@@ -173,6 +193,68 @@ bool setup_sdl()
     glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer);
     glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(*tex_coords), tex_coords,
                  GL_STATIC_DRAW);
+
+    // Font
+    {
+        // TODO get proper error messages for freetype functions
+
+        FT_Error error = FT_Init_FreeType(&library);
+        if (error) printf("setup_sdl: FT_Init_FreeType: %d\n ", error);
+
+        FT_Face face;
+
+        error =
+            FT_New_Face(library, "assets/fonts/NovaMono-Regular.ttf", 0, &face);
+        if (error) printf("setup_sdl: FT_New_Face: %d\n ", error);
+
+        /* use 50pt at 100dpi */
+        // TODO get DPI of screen
+        error = FT_Set_Char_Size(face, 50 * 64, 0, 100, 0);
+        if (error) printf("setup_sdl: FT_New_Face: %d\n ", error);
+
+        int visible_ascii_size = ('~' - ' ' + 1);
+        char *visible_ascii = malloc(visible_ascii_size + 1);
+
+        char c = ' ';
+        for (int i = 0; i < visible_ascii_size; ++i, ++c) {
+            visible_ascii[i] = c;
+        }
+
+        visible_ascii[visible_ascii_size] = '\0';
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+        glGenTextures(1, &font);
+
+        glBindTexture(GL_TEXTURE_2D, font);
+
+        int font_texture_width = round_up_to_power_of_two(
+            (face->size->metrics.max_advance >> 6) * visible_ascii_size);
+
+        int font_texture_height =
+            round_up_to_power_of_two(face->size->metrics.height >> 6);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, font_texture_width,
+                     font_texture_height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, NULL);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        const char *glyphs = visible_ascii;
+        int glyph_index;
+
+        for (int i = 0; i < visible_ascii_size; ++i, ++glyphs) {
+            glyph_index = FT_Get_Char_Index(face, *glyphs);
+
+            error = FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT);
+            if (error) printf("setup_sdl: FT_Load_Glyph: %d\n ", error);
+
+            error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
+            if (error) printf("setup_sdl: FT_Render_Glyph: %d\n ", error);
+        }
+    }
 
     // Audio
     int frequency = frequency = EM_ASM_INT_V({
