@@ -127,10 +127,10 @@ bool setup_sdl()
 
     // SHADERS
     GLuint vertex_shader =
-        load_shader_from_file("assets/shaders/vertex.glsl", GL_VERTEX_SHADER);
+        load_shader_from_file("assets/shaders/viewport.vert", GL_VERTEX_SHADER);
 
     GLuint fragment_shader = load_shader_from_file(
-        "assets/shaders/fragment.glsl", GL_FRAGMENT_SHADER);
+        "assets/shaders/viewport.frag", GL_FRAGMENT_SHADER);
 
     program_object = glCreateProgram();
 
@@ -224,18 +224,28 @@ bool setup_sdl()
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
+        int max_advance = (face->size->metrics.max_advance >> 6);
+        int max_height = face->size->metrics.height >> 6;
+
+        int font_texture_width =
+            round_up_to_power_of_two(max_advance * visible_ascii_size);
+
+        int font_texture_height = round_up_to_power_of_two(max_height);
+
         glGenTextures(1, &font);
 
         glBindTexture(GL_TEXTURE_2D, font);
 
-        int font_texture_width = round_up_to_power_of_two(
-            (face->size->metrics.max_advance >> 6) * visible_ascii_size);
-
-        int font_texture_height =
-            round_up_to_power_of_two(face->size->metrics.height >> 6);
+        // TODO This suppresses a warning emitted by WebGL, see if we can
+        // replace or work around it
+        uint8_t *buffer = malloc(font_texture_width * font_texture_height);
+        memset(buffer, 0, font_texture_width * font_texture_height);
 
         glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, font_texture_width,
-                     font_texture_height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, NULL);
+                     font_texture_height, 0, GL_ALPHA, GL_UNSIGNED_BYTE,
+                     buffer);
+
+        free(buffer);
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -253,6 +263,12 @@ bool setup_sdl()
 
             error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
             if (error) printf("setup_sdl: FT_Render_Glyph: %d\n ", error);
+
+            if (!face->glyph->bitmap.buffer) continue;
+
+            glTexSubImage2D(GL_TEXTURE_2D, 0, i * max_advance, 0, max_advance,
+                            max_height, GL_ALPHA, GL_UNSIGNED_BYTE,
+                            face->glyph->bitmap.buffer);
         }
     }
 
