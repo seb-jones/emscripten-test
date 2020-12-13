@@ -9,12 +9,14 @@
 #include "sdl.c"
 #include "gl.c"
 
-#define COLOUR_ATTRIBUTE_LOCATION 0
-#define POSITION_ATTRIBUTE_LOCATION 1
+#define POSITION_ATTRIBUTE_LOCATION 0
+#define COLOUR_ATTRIBUTE_LOCATION 1
 #define POSITION_ATTRIBUTE_SIZE 4
 #define COLOUR_ATTRIBUTE_SIZE 4
-#define FLOATS_PER_PARTICLE (POSITION_ATTRIBUTE_SIZE * COLOUR_ATTRIBUTE_SIZE)
+#define FLOATS_PER_PARTICLE (POSITION_ATTRIBUTE_SIZE + COLOUR_ATTRIBUTE_SIZE)
+#define PARTICLE_BYTES ((FLOATS_PER_PARTICLE) * sizeof(float))
 #define ONE_SECOND 1000.0
+#define PARTICLE_SPEED 0.001f
 
 typedef struct Renderer
 {
@@ -44,54 +46,6 @@ typedef struct Globals
     int particles_size;
 } Globals;
 
-EM_BOOL main_loop(double time, void *user_data)
-{
-    Globals *globals = (Globals *)user_data;
-    Timing *timing = &globals->timing;
-
-    timing->previous_frame_start_time = timing->frame_start_time;
-    timing->frame_start_time = time;
-
-    double dt = timing->frame_start_time - timing->previous_frame_start_time;
-
-    timing->fps_timer += dt;
-    while (timing->fps_timer >= ONE_SECOND) {
-        printf("FPS: %d\n", timing->fps);
-        timing->fps_timer -= ONE_SECOND;
-        timing->fps = 0;
-    }
-
-    SDL_PumpEvents();
-
-    SDL *sdl = &globals->sdl;
-    if (sdl->keyboard_state[SDL_SCANCODE_Q]) {
-        cleanup_sdl(sdl);
-        return EM_FALSE;
-    }
-
-    {
-        Renderer *renderer = &globals->renderer;
-
-        glClearColor(0.3, 0.3, 0.4, 1.0);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        int buffer_bytes =
-            (globals->particles_count * POSITION_ATTRIBUTE_SIZE *
-             sizeof(float)) +
-            (globals->particles_count * COLOUR_ATTRIBUTE_SIZE * sizeof(float));
-
-        glBufferSubData(GL_ARRAY_BUFFER, 0, buffer_bytes, globals->particles);
-
-        SDL_GL_SwapWindow(sdl->window);
-
-        glDrawArrays(GL_POINTS, 0, globals->particles_count);
-    }
-
-    ++timing->fps;
-
-    return EM_TRUE;
-}
-
 void set_particle(float *particle, float x, float y, float r, float g, float b,
                   float a)
 {
@@ -108,9 +62,58 @@ void set_particle(float *particle, float x, float y, float r, float g, float b,
 
 void spawn_particle(float *particle)
 {
-    set_particle(particle, 0.0f, -1.0f, (float)rand() / (float)RAND_MAX,
-                 (float)rand() / (float)RAND_MAX,
-                 (float)rand() / (float)RAND_MAX, 1.0f);
+    float x = ((float)rand() / (float)(RAND_MAX / 2)) - 1.0f;
+    float y = ((float)rand() / (float)(RAND_MAX / 2)) - 1.0f;
+
+    set_particle(particle, x, y, (float)rand() / (float)(RAND_MAX),
+                 (float)rand() / (float)(RAND_MAX),
+                 (float)rand() / (float)(RAND_MAX), 1.0f);
+}
+
+EM_BOOL main_loop(double time, void *user_data)
+{
+    Globals *globals = (Globals *)user_data;
+    Timing *timing = &globals->timing;
+
+    timing->previous_frame_start_time = timing->frame_start_time;
+    timing->frame_start_time = time;
+
+    double dt = timing->frame_start_time - timing->previous_frame_start_time;
+
+    timing->fps_timer += dt;
+    while (timing->fps_timer >= ONE_SECOND) {
+        printf("FPS: %d    dt: %f    Particle Count: %d\n", timing->fps, dt,
+               globals->particles_count);
+        timing->fps_timer -= ONE_SECOND;
+        timing->fps = 0;
+    }
+
+    SDL_PumpEvents();
+
+    SDL *sdl = &globals->sdl;
+    if (sdl->keyboard_state[SDL_SCANCODE_Q]) {
+        cleanup_sdl(sdl);
+        return EM_FALSE;
+    }
+
+    // Render
+    {
+        Renderer *renderer = &globals->renderer;
+
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glBufferSubData(GL_ARRAY_BUFFER, 0,
+                        globals->particles_count * PARTICLE_BYTES,
+                        globals->particles);
+
+        glDrawArrays(GL_POINTS, 0, globals->particles_count);
+
+        SDL_GL_SwapWindow(sdl->window);
+    }
+
+    ++timing->fps;
+
+    return EM_TRUE;
 }
 
 int main(int argc, char *argv[])
@@ -129,13 +132,13 @@ int main(int argc, char *argv[])
     // Setup Particles
     {
         globals->particles_size = 100000;
-        globals->particles =
-            malloc(globals->particles_size * sizeof(*globals->particles) *
-                   FLOATS_PER_PARTICLE);
+        globals->particles = malloc(globals->particles_size * PARTICLE_BYTES);
 
-        spawn_particle(globals->particles);
+        for (int i = 0; i < globals->particles_size; ++i) {
+            spawn_particle(globals->particles + (i * FLOATS_PER_PARTICLE));
+        }
 
-        globals->particles_count = 1;
+        globals->particles_count = globals->particles_size;
     }
 
     // Setup Renderer
@@ -201,6 +204,8 @@ int main(int argc, char *argv[])
 
         glUseProgram(renderer->program);
 
+        glClearColor(0.0, 0.0, 0.0, 1.0);
+
         // Set point_size uniform
         {
             GLint location =
@@ -222,23 +227,20 @@ int main(int argc, char *argv[])
             glGenBuffers(1, &renderer->buffer_object);
             glBindBuffer(GL_ARRAY_BUFFER, renderer->buffer_object);
 
-            int buffer_bytes = (globals->particles_size *
-                                POSITION_ATTRIBUTE_SIZE * sizeof(float)) +
-                               (globals->particles_size *
-                                COLOUR_ATTRIBUTE_SIZE * sizeof(float));
-
-            glBufferData(GL_ARRAY_BUFFER, buffer_bytes, NULL, GL_DYNAMIC_DRAW);
+            glBufferData(GL_ARRAY_BUFFER,
+                         globals->particles_size * PARTICLE_BYTES, NULL,
+                         GL_DYNAMIC_DRAW);
 
             glEnableVertexAttribArray(POSITION_ATTRIBUTE_LOCATION);
             glEnableVertexAttribArray(COLOUR_ATTRIBUTE_LOCATION);
 
             glVertexAttribPointer(POSITION_ATTRIBUTE_LOCATION,
                                   POSITION_ATTRIBUTE_SIZE, GL_FLOAT, GL_FALSE,
-                                  POSITION_ATTRIBUTE_SIZE * sizeof(float), 0);
+                                  PARTICLE_BYTES, 0);
 
             glVertexAttribPointer(
                 COLOUR_ATTRIBUTE_LOCATION, COLOUR_ATTRIBUTE_SIZE, GL_FLOAT,
-                GL_FALSE, COLOUR_ATTRIBUTE_SIZE * sizeof(float),
+                GL_FALSE, PARTICLE_BYTES,
                 (const void *)(POSITION_ATTRIBUTE_SIZE * sizeof(float)));
         }
     }
