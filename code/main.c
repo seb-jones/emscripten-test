@@ -13,10 +13,11 @@
 #define COLOUR_ATTRIBUTE_LOCATION 1
 #define POSITION_ATTRIBUTE_SIZE 4
 #define COLOUR_ATTRIBUTE_SIZE 4
-#define FLOATS_PER_PARTICLE (POSITION_ATTRIBUTE_SIZE + COLOUR_ATTRIBUTE_SIZE)
-#define PARTICLE_BYTES ((FLOATS_PER_PARTICLE) * sizeof(float))
+#define PARTICLE_FLOATS (POSITION_ATTRIBUTE_SIZE + COLOUR_ATTRIBUTE_SIZE)
+#define PARTICLE_BYTES ((PARTICLE_FLOATS) * sizeof(float))
 #define ONE_SECOND 1000.0
-#define PARTICLE_SPEED 0.001f
+#define PARTICLE_SPEED 0.002f
+#define NEW_PARTICLES_PER_FRAME 1000
 
 typedef struct Renderer
 {
@@ -63,7 +64,7 @@ void set_particle(float *particle, float x, float y, float r, float g, float b,
 void spawn_particle(float *particle)
 {
     float x = ((float)rand() / (float)(RAND_MAX / 2)) - 1.0f;
-    float y = ((float)rand() / (float)(RAND_MAX / 2)) - 1.0f;
+    float y = -1.1f;
 
     set_particle(particle, x, y, (float)rand() / (float)(RAND_MAX),
                  (float)rand() / (float)(RAND_MAX),
@@ -82,8 +83,8 @@ EM_BOOL main_loop(double time, void *user_data)
 
     timing->fps_timer += dt;
     while (timing->fps_timer >= ONE_SECOND) {
-        printf("FPS: %d    dt: %f    Particle Count: %d\n", timing->fps, dt,
-               globals->particles_count);
+        /* printf("FPS: %d    dt: %f    Particle Count: %d\n", timing->fps, dt, */
+        /*        globals->particles_count); */
         timing->fps_timer -= ONE_SECOND;
         timing->fps = 0;
     }
@@ -94,6 +95,35 @@ EM_BOOL main_loop(double time, void *user_data)
     if (sdl->keyboard_state[SDL_SCANCODE_Q]) {
         cleanup_sdl(sdl);
         return EM_FALSE;
+    }
+
+    // Update
+    {
+        float *particle = globals->particles;
+        int i = 0;
+        while (i < globals->particles_count) {
+            particle[1] += PARTICLE_SPEED * dt;
+
+            if (particle[1] > 1.0f) {
+                --globals->particles_count;
+
+                float *source = globals->particles +
+                                (globals->particles_count * PARTICLE_FLOATS);
+
+                memcpy(particle, source, PARTICLE_BYTES);
+            } else {
+                ++i;
+                particle += PARTICLE_FLOATS;
+            }
+        }
+
+        for (i = 0; i < NEW_PARTICLES_PER_FRAME; ++i) {
+            if (globals->particles_count == globals->particles_size) break;
+
+            spawn_particle(particle);
+            particle += PARTICLE_FLOATS;
+            ++globals->particles_count;
+        }
     }
 
     // Render
@@ -131,14 +161,8 @@ int main(int argc, char *argv[])
 
     // Setup Particles
     {
-        globals->particles_size = 100000;
+        globals->particles_size = 200000;
         globals->particles = malloc(globals->particles_size * PARTICLE_BYTES);
-
-        for (int i = 0; i < globals->particles_size; ++i) {
-            spawn_particle(globals->particles + (i * FLOATS_PER_PARTICLE));
-        }
-
-        globals->particles_count = globals->particles_size;
     }
 
     // Setup Renderer
@@ -214,7 +238,7 @@ int main(int argc, char *argv[])
             GLfloat pointSizeRange[2];
             glGetFloatv(GL_ALIASED_POINT_SIZE_RANGE, pointSizeRange);
 
-            GLfloat max_point_size = globals->window_width / 100;
+            GLfloat max_point_size = globals->window_width / 50;
             GLfloat pointSize = pointSizeRange[1] > max_point_size ?
                                     max_point_size :
                                     pointSizeRange[1];
