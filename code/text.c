@@ -93,13 +93,14 @@ int main(int argc, char *argv[])
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         const char vertex_shader_code[] =
+            "uniform mat4 projection;\n"
             "attribute vec2 position;\n"
             "attribute vec2 tex_coord;\n"
             "varying vec2 varying_tex_coord;\n"
             "\n"
             "void main()\n"
             "{\n"
-            "    gl_Position = vec4(position.x, position.y, 0.0, 1.0);\n"
+            "    gl_Position = vec4(position.xy, 0.0, 1.0) * projection;\n"
             "    varying_tex_coord = tex_coord;\n"
             "}";
 
@@ -130,10 +131,50 @@ int main(int argc, char *argv[])
         glClearColor(0.1, 0.3, 0.5, 1.0);
 
         // Uniforms
+        float l = 0.0f;
+        float b = 0.0f;
+        float r = 5.0f;
+        float t = 5.0f;
+        /* float r = globals->window_width; */
+        /* float t = globals->window_height; */
+
         {
             GLint location = glGetUniformLocation(renderer->program, "sampler");
 
             glUniform1i(location, 0);
+
+            location = glGetUniformLocation(renderer->program, "projection");
+
+            float n = -1.0f;
+            float f = 1.0f;
+
+            float projection_matrix[] = {
+                // col 1
+                2.0f / (r - l),
+                0.0f,
+                0.0f,
+                -((r + l) / (r - l)),
+
+                // col 2
+                0.0f,
+                2.0f / (t - b),
+                0.0f,
+                -((t + b) / (t - b)),
+
+                // col 3
+                0.0f,
+                0.0f,
+                (-2.0f) / (f - n),
+                -((f + n) / (f - n)),
+
+                // col 4
+                0.0f,
+                0.0f,
+                0.0f,
+                1.0f,
+            };
+
+            glUniformMatrix4fv(location, 1, GL_FALSE, projection_matrix);
         }
 
         // Setup Font
@@ -190,17 +231,17 @@ int main(int argc, char *argv[])
         // Setup Vertices
         {
             float positions[] = {
-                0.5f,  0.5f,
+                1.0f, 1.0f,
 
-                -0.5f, 0.5f,
+                0.0f, 1.0f,
 
-                -0.5f, -0.5f,
+                0.0f, 0.0f,
 
-                0.5f,  0.5f,
+                1.0f, 1.0f,
 
-                -0.5f, -0.5f,
+                0.0f, 0.0f,
 
-                0.5f,  -0.5f,
+                1.0f, 0.0f,
             };
 
             float texcoords[] = {
