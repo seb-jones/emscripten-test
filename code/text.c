@@ -66,7 +66,8 @@ EM_BOOL main_loop(double time, void *user_data)
         SDL_GL_SwapWindow(sdl->window);
     }
 
-    return EM_TRUE;
+    return EM_FALSE;
+    /* return EM_TRUE; */
 }
 
 int main(int argc, char *argv[])
@@ -136,6 +137,8 @@ int main(int argc, char *argv[])
 
         // Setup Texture
         {
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
             glGenTextures(1, &renderer->texture);
 
             glActiveTexture(GL_TEXTURE0);
