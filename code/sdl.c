@@ -34,6 +34,8 @@ bool setup_sdl(SDL *sdl, int window_width, int window_height)
 
     sdl->keyboard_state = SDL_GetKeyboardState(&sdl->keyboard_state_size);
 
+    glViewport(0, 0, window_width, window_height);
+
     return true;
 }
 
