@@ -12,6 +12,7 @@
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
+#include "maths.c"
 #include "sdl.c"
 #include "gl.c"
 
@@ -103,7 +104,7 @@ int main(int argc, char *argv[])
             "}";
 
         const char fragment_shader_code[] =
-            "precision mediump float;\n"
+            "precision lowp float;\n"
             "varying vec2 varying_tex_coord;\n"
             "uniform sampler2D sampler;\n"
             "const float one = 1.0;\n"
