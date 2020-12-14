@@ -136,6 +136,32 @@ int main(int argc, char *argv[])
             glUniform1i(location, 0);
         }
 
+        // Setup Font
+        FT_Library freetype;
+        FT_Face face;
+        {
+            // TODO get proper error messages for freetype functions
+
+            FT_Error error = FT_Init_FreeType(&freetype);
+            if (error) printf("FT_Init_FreeType: %d\n ", error);
+
+            error = FT_New_Face(freetype, "assets/fonts/NovaMono-Regular.ttf",
+                                0, &face);
+            if (error) printf("FT_New_Face: %d\n ", error);
+
+            /* use 50pt at 100dpi */
+            error = FT_Set_Char_Size(face, 400 * 64, 0, 100, 0);
+            if (error) printf("FT_New_Face: %d\n ", error);
+
+            int glyph_index = FT_Get_Char_Index(face, 'Q');
+
+            error = FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT);
+            if (error) printf("FT_Load_Glyph: %d\n ", error);
+
+            error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
+            if (error) printf("FT_Render_Glyph: %d\n ", error);
+        }
+
         // Setup Texture
         {
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -146,25 +172,20 @@ int main(int argc, char *argv[])
 
             glBindTexture(GL_TEXTURE_2D, renderer->texture);
 
-            int alphas_size = 25;
-            uint8_t *alphas = malloc(alphas_size);
-            uint8_t step = UINT8_MAX / alphas_size;
-            uint8_t alpha = 0;
-            for (int i = 0; i < alphas_size; ++i) {
-                alphas[i] = alpha;
-                alpha += step;
-            }
+            int width = face->glyph->bitmap.width;
+            int height = face->glyph->bitmap.rows;
 
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 5, 5, 0, GL_ALPHA,
-                         GL_UNSIGNED_BYTE, alphas);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, width, height, 0, GL_ALPHA,
+                         GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
 
-            free(alphas);
-
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         }
+
+        FT_Done_Face(face);
+        FT_Done_FreeType(freetype);
 
         // Setup Vertices
         {
