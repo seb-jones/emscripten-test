@@ -132,9 +132,9 @@ int main(int argc, char *argv[])
 
         // Uniforms
         float l = 0.0f;
-        float b = 0.0f;
+        float b = globals->window_height;
         float r = globals->window_width;
-        float t = globals->window_height;
+        float t = 0.0f;
 
         {
             GLint location = glGetUniformLocation(renderer->program, "sampler");
@@ -248,17 +248,17 @@ int main(int argc, char *argv[])
             };
 
             float texcoords[] = {
-                1.0f, 0.0f,
+                1.0f, 1.0f,
+
+                0.0f, 1.0f,
 
                 0.0f, 0.0f,
 
-                0.0f, 1.0f,
+                1.0f, 1.0f,
+
+                0.0f, 0.0f,
 
                 1.0f, 0.0f,
-
-                0.0f, 1.0f,
-
-                1.0f, 1.0f,
             };
 
             globals->vertices = malloc(VERTEX_BYTES * QUAD_VERTICES);
