@@ -133,10 +133,8 @@ int main(int argc, char *argv[])
         // Uniforms
         float l = 0.0f;
         float b = 0.0f;
-        float r = 5.0f;
-        float t = 5.0f;
-        /* float r = globals->window_width; */
-        /* float t = globals->window_height; */
+        float r = globals->window_width;
+        float t = globals->window_height;
 
         {
             GLint location = glGetUniformLocation(renderer->program, "sampler");
@@ -148,26 +146,28 @@ int main(int argc, char *argv[])
             float n = -1.0f;
             float f = 1.0f;
 
+            // Orthographic projection matrix based on glOrtho:
+            // https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
             float projection_matrix[] = {
-                // col 1
+                // row 1
                 2.0f / (r - l),
                 0.0f,
                 0.0f,
                 -((r + l) / (r - l)),
 
-                // col 2
+                // row 2
                 0.0f,
                 2.0f / (t - b),
                 0.0f,
                 -((t + b) / (t - b)),
 
-                // col 3
+                // row 3
                 0.0f,
                 0.0f,
                 (-2.0f) / (f - n),
                 -((f + n) / (f - n)),
 
-                // col 4
+                // row 4
                 0.0f,
                 0.0f,
                 0.0f,
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
             if (error) printf("FT_New_Face: %d\n ", error);
 
             /* use 50pt at 100dpi */
-            error = FT_Set_Char_Size(face, 400 * 64, 0, 100, 0);
+            error = FT_Set_Char_Size(face, 100 * 64, 0, 100, 0);
             if (error) printf("FT_New_Face: %d\n ", error);
 
             int glyph_index = FT_Get_Char_Index(face, 'Q');
@@ -204,6 +204,8 @@ int main(int argc, char *argv[])
         }
 
         // Setup Texture
+        int glyph_width;
+        int glyph_height;
         {
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
@@ -213,11 +215,12 @@ int main(int argc, char *argv[])
 
             glBindTexture(GL_TEXTURE_2D, renderer->texture);
 
-            int width = face->glyph->bitmap.width;
-            int height = face->glyph->bitmap.rows;
+            glyph_width = face->glyph->bitmap.width;
+            glyph_height = face->glyph->bitmap.rows;
 
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, width, height, 0, GL_ALPHA,
-                         GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, glyph_width, glyph_height,
+                         0, GL_ALPHA, GL_UNSIGNED_BYTE,
+                         face->glyph->bitmap.buffer);
 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -231,17 +234,17 @@ int main(int argc, char *argv[])
         // Setup Vertices
         {
             float positions[] = {
-                1.0f, 1.0f,
+                glyph_width, glyph_height,
 
-                0.0f, 1.0f,
+                0.0f,        glyph_height,
 
-                0.0f, 0.0f,
+                0.0f,        0.0f,
 
-                1.0f, 1.0f,
+                glyph_width, glyph_height,
 
-                0.0f, 0.0f,
+                0.0f,        0.0f,
 
-                1.0f, 0.0f,
+                glyph_width, 0.0f,
             };
 
             float texcoords[] = {
