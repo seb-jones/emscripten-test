@@ -185,9 +185,6 @@ int main(int argc, char *argv[])
                                           "    varying_colour = colour;\n"
                                           "}";
 
-        GLuint vertex_shader =
-            load_shader(vertex_shader_code, GL_VERTEX_SHADER);
-
         const char fragment_shader_code[] =
             "precision mediump float;\n"
             "varying vec4 varying_colour;\n"
@@ -197,30 +194,17 @@ int main(int argc, char *argv[])
             "    gl_FragColor = varying_colour;\n"
             "}";
 
-        GLuint fragment_shader =
-            load_shader(fragment_shader_code, GL_FRAGMENT_SHADER);
+        renderer->program = create_shader_program_from_code(
+            vertex_shader_code, fragment_shader_code);
 
-        renderer->program = glCreateProgram();
-
-        // TODO proper error checking/reporting
         if (renderer->program == 0) return false;
-
-        glAttachShader(renderer->program, vertex_shader);
-        glAttachShader(renderer->program, fragment_shader);
 
         glBindAttribLocation(renderer->program, POSITION_ATTRIBUTE_LOCATION,
                              "position");
         glBindAttribLocation(renderer->program, COLOUR_ATTRIBUTE_LOCATION,
                              "colour");
 
-        glLinkProgram(renderer->program);
-
-        GLint linked;
-        glGetProgramiv(renderer->program, GL_LINK_STATUS, &linked);
-
-        if (!linked) {
-            // TODO get error message from GL
-            fprintf(stderr, "error linking GL program\n");
+        if (!link_shader_program(renderer->program)) {
             return false;
         }
 
