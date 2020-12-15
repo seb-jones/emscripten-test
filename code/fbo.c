@@ -158,6 +158,11 @@ int main(int argc, char *argv[])
 
             if (renderer->screen_program == 0) return false;
 
+            glBindAttribLocation(renderer->screen_program,
+                                 SCREEN_POSITION_ATTRIBUTE, "position");
+            glBindAttribLocation(renderer->screen_program,
+                                 SCREEN_TEXCOORD_ATTRIBUTE, "texcoord");
+
             if (!link_shader_program(renderer->screen_program)) {
                 return false;
             }
@@ -192,6 +197,9 @@ int main(int argc, char *argv[])
                 vertex_shader_code, fragment_shader_code);
 
             if (renderer->world_program == 0) return false;
+
+            glBindAttribLocation(renderer->world_program,
+                                 WORLD_POSITION_ATTRIBUTE, "position");
 
             if (!link_shader_program(renderer->world_program)) {
                 return false;
@@ -244,37 +252,59 @@ int main(int argc, char *argv[])
 
         // Setup Screen VBO
         {
-            // Interleaved position and texcoord data
-            float vertices[] = {
-                -1.0f, -1.0f,
-
-                0.0f,  0.0f,
-
-                1.0f,  1.0f,
-
+            float positions[] = {
                 1.0f,  1.0f,
 
                 -1.0f, 1.0f,
 
-                0.0f,  1.0f,
+                -1.0f, -1.0f,
+
+                1.0f,  1.0f,
 
                 -1.0f, -1.0f,
 
-                0.0f,  0.0f,
-
                 1.0f,  -1.0f,
-
-                1.0f,  0.0f,
-
-                1.0f,  1.0f,
-
-                1.0f,  1.0f,
             };
+
+            float texcoords[] = {
+                1.0f, 1.0f,
+
+                0.0f, 1.0f,
+
+                0.0f, 0.0f,
+
+                1.0f, 1.0f,
+
+                0.0f, 0.0f,
+
+                1.0f, 0.0f,
+            };
+
+            float *vertices = malloc(SCREEN_QUAD_BYTES);
+
+            float *vertex = vertices;
+            float *position = positions;
+            float *texcoord = texcoords;
+
+            for (int i = 0; i < QUAD_VERTICES; ++i) {
+                vertex[0] = position[0];
+                vertex[1] = position[1];
+                vertex[2] = texcoord[0];
+                vertex[3] = texcoord[1];
+
+                vertex += POSITION_COMPONENTS + TEXCOORD_COMPONENTS;
+                position += POSITION_COMPONENTS;
+                texcoord += TEXCOORD_COMPONENTS;
+            }
+
+            glUseProgram(renderer->screen_program);
 
             glGenBuffers(1, &renderer->screen_vbo);
             glBindBuffer(GL_ARRAY_BUFFER, renderer->screen_vbo);
             glBufferData(GL_ARRAY_BUFFER, SCREEN_QUAD_BYTES, vertices,
                          GL_STATIC_DRAW);
+
+            free(vertices);
 
             glEnableVertexAttribArray(SCREEN_POSITION_ATTRIBUTE);
             glEnableVertexAttribArray(SCREEN_TEXCOORD_ATTRIBUTE);
@@ -299,10 +329,14 @@ int main(int argc, char *argv[])
                 1.0f, 0.0f,
             };
 
+            glUseProgram(renderer->screen_program);
+
             glGenBuffers(1, &renderer->world_vbo);
             glBindBuffer(GL_ARRAY_BUFFER, renderer->world_vbo);
             glBufferData(GL_ARRAY_BUFFER, WORLD_TRIANGLE_BYTES, positions,
                          GL_STATIC_DRAW);
+
+            glEnableVertexAttribArray(WORLD_POSITION_ATTRIBUTE);
 
             glVertexAttribPointer(WORLD_POSITION_ATTRIBUTE, POSITION_COMPONENTS,
                                   GL_FLOAT, GL_FALSE, POSITION_BYTES, 0);
