@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
                 1.0f, 0.0f,
             };
 
-            glUseProgram(renderer->screen_program);
+            glUseProgram(renderer->world_program);
 
             glGenBuffers(1, &renderer->world_vbo);
             glBindBuffer(GL_ARRAY_BUFFER, renderer->world_vbo);
