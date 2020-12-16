@@ -1,9 +1,6 @@
 build/index.html: code/*.c assets/shaders/*.vert assets/shaders/*.frag
 	emcc -O0 -s ASSERTIONS=1 -s SAFE_HEAP=1 -s ENVIRONMENT=web -s USE_SDL=2 --preload-file assets -o build/index.html code/fbo.c
 
-prod: code/*.c assets/shaders/*.vert assets/shaders/*.frag
-	emcc -O3 -s ENVIRONMENT=web -s USE_SDL=2 -s USE_FREETYPE=1 --preload-file assets -o build/index.html code/text.c
-
 text: code/*.c assets/shaders/*.vert assets/shaders/*.frag
 	emcc -O0 -s ASSERTIONS=1 -s SAFE_HEAP=1 -s ENVIRONMENT=web -s USE_FREETYPE=1 -s USE_SDL=2 --preload-file assets -o build/index.html code/text.c
 

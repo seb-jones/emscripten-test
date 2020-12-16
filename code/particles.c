@@ -8,6 +8,7 @@
 
 #include "sdl.c"
 #include "gl.c"
+#include "timing.c"
 
 #define POSITION_ATTRIBUTE_LOCATION 0
 #define COLOUR_ATTRIBUTE_LOCATION 1
@@ -24,14 +25,6 @@ typedef struct Renderer
     GLuint program;
     GLuint buffer_object;
 } Renderer;
-
-typedef struct Timing
-{
-    double frame_start_time;
-    double previous_frame_start_time;
-    double fps_timer;
-    int fps;
-} Timing;
 
 typedef struct Globals
 {
@@ -74,19 +67,8 @@ void spawn_particle(float *particle)
 EM_BOOL main_loop(double time, void *user_data)
 {
     Globals *globals = (Globals *)user_data;
-    Timing *timing = &globals->timing;
 
-    timing->previous_frame_start_time = timing->frame_start_time;
-    timing->frame_start_time = time;
-
-    double dt = timing->frame_start_time - timing->previous_frame_start_time;
-
-    timing->fps_timer += dt;
-    while (timing->fps_timer >= ONE_SECOND) {
-        printf("FPS: %d; DT: %f\n", timing->fps, dt);
-        timing->fps_timer -= ONE_SECOND;
-        timing->fps = 0;
-    }
+    double dt = update_timing(&globals->timing, time);
 
     SDL_PumpEvents();
 
@@ -140,7 +122,7 @@ EM_BOOL main_loop(double time, void *user_data)
         SDL_GL_SwapWindow(sdl->window);
     }
 
-    ++timing->fps;
+    ++globals->timing.fps;
 
     return EM_TRUE;
 }
