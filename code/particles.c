@@ -83,8 +83,7 @@ EM_BOOL main_loop(double time, void *user_data)
 
     timing->fps_timer += dt;
     while (timing->fps_timer >= ONE_SECOND) {
-        /* printf("FPS: %d    dt: %f    Particle Count: %d\n", timing->fps, dt, */
-        /*        globals->particles_count); */
+        printf("FPS: %d; DT: %f\n", timing->fps, dt);
         timing->fps_timer -= ONE_SECOND;
         timing->fps = 0;
     }

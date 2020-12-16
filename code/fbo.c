@@ -13,6 +13,8 @@
 #include "sdl.c"
 #include "gl.c"
 
+#define ONE_SECOND 1000.0
+
 #define TEXTURE_WIDTH 128
 #define TEXTURE_HEIGHT 64
 #define TEXTURE_BYTES_PER_PIXEL 4
@@ -20,10 +22,6 @@
 
 #define TRIANGLE_VERTICES 3
 #define QUAD_VERTICES (TRIANGLE_VERTICES * 2)
-
-#define SCREEN_POSITION_ATTRIBUTE 0
-#define SCREEN_TEXCOORD_ATTRIBUTE 1
-#define WORLD_POSITION_ATTRIBUTE 2
 
 #define POSITION_COMPONENTS 2
 #define POSITION_BYTES (POSITION_COMPONENTS * sizeof(float))
@@ -41,12 +39,24 @@ typedef struct Renderer
     GLuint fbo;
     GLuint world_vbo;
     GLuint screen_vbo;
+    GLint screen_position_attribute;
+    GLint screen_texcoord_attribute;
+    GLint world_position_attribute;
 } Renderer;
+
+typedef struct Timing
+{
+    double frame_start_time;
+    double previous_frame_start_time;
+    double fps_timer;
+    int fps;
+} Timing;
 
 typedef struct Globals
 {
     SDL sdl;
     Renderer renderer;
+    Timing timing;
     int window_width;
     int window_height;
     float *vertices;
@@ -55,6 +65,19 @@ typedef struct Globals
 EM_BOOL main_loop(double time, void *user_data)
 {
     Globals *globals = (Globals *)user_data;
+    Timing *timing = &globals->timing;
+
+    timing->previous_frame_start_time = timing->frame_start_time;
+    timing->frame_start_time = time;
+
+    double dt = timing->frame_start_time - timing->previous_frame_start_time;
+
+    timing->fps_timer += dt;
+    while (timing->fps_timer >= ONE_SECOND) {
+        printf("FPS: %d; DT: %f\n", timing->fps, dt);
+        timing->fps_timer -= ONE_SECOND;
+        timing->fps = 0;
+    }
 
     SDL_PumpEvents();
 
@@ -78,6 +101,14 @@ EM_BOOL main_loop(double time, void *user_data)
 
             glBindBuffer(GL_ARRAY_BUFFER, renderer->world_vbo);
 
+            glDisableVertexAttribArray(renderer->screen_position_attribute);
+            glDisableVertexAttribArray(renderer->screen_texcoord_attribute);
+            glEnableVertexAttribArray(renderer->world_position_attribute);
+
+            glVertexAttribPointer(renderer->world_position_attribute,
+                                  POSITION_COMPONENTS, GL_FLOAT, GL_FALSE,
+                                  POSITION_BYTES, 0);
+
             glClearColor(0.1, 0.3, 0.5, 1.0);
             glClear(GL_COLOR_BUFFER_BIT);
 
@@ -88,11 +119,24 @@ EM_BOOL main_loop(double time, void *user_data)
         {
             glViewport(0, 0, globals->window_width, globals->window_height);
 
+            glUseProgram(renderer->screen_program);
+
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
             glBindBuffer(GL_ARRAY_BUFFER, renderer->screen_vbo);
 
-            glUseProgram(renderer->screen_program);
+            glDisableVertexAttribArray(renderer->world_position_attribute);
+            glEnableVertexAttribArray(renderer->screen_position_attribute);
+            glEnableVertexAttribArray(renderer->screen_texcoord_attribute);
+
+            glVertexAttribPointer(renderer->screen_position_attribute,
+                                  POSITION_COMPONENTS, GL_FLOAT, GL_FALSE,
+                                  POSITION_BYTES + TEXCOORD_BYTES, 0);
+
+            glVertexAttribPointer(renderer->screen_texcoord_attribute,
+                                  TEXCOORD_COMPONENTS, GL_FLOAT, GL_FALSE,
+                                  POSITION_BYTES + TEXCOORD_BYTES,
+                                  (void *)POSITION_BYTES);
 
             glClearColor(0.0, 0.0, 0.0, 1.0);
             glClear(GL_COLOR_BUFFER_BIT);
@@ -101,10 +145,11 @@ EM_BOOL main_loop(double time, void *user_data)
         }
 
         SDL_GL_SwapWindow(sdl->window);
+
+        ++timing->fps;
     }
 
-    return EM_FALSE;
-    /* return EM_TRUE; */
+    return EM_TRUE;
 }
 
 int main(int argc, char *argv[])
@@ -158,16 +203,16 @@ int main(int argc, char *argv[])
 
             if (renderer->screen_program == 0) return false;
 
-            glBindAttribLocation(renderer->screen_program,
-                                 SCREEN_POSITION_ATTRIBUTE, "position");
-            glBindAttribLocation(renderer->screen_program,
-                                 SCREEN_TEXCOORD_ATTRIBUTE, "texcoord");
-
             if (!link_shader_program(renderer->screen_program)) {
                 return false;
             }
 
             glUseProgram(renderer->screen_program);
+
+            renderer->screen_position_attribute =
+                glGetAttribLocation(renderer->screen_program, "position");
+            renderer->screen_texcoord_attribute =
+                glGetAttribLocation(renderer->screen_program, "texcoord");
 
             GLint location =
                 glGetUniformLocation(renderer->screen_program, "sampler");
@@ -198,12 +243,12 @@ int main(int argc, char *argv[])
 
             if (renderer->world_program == 0) return false;
 
-            glBindAttribLocation(renderer->world_program,
-                                 WORLD_POSITION_ATTRIBUTE, "position");
-
             if (!link_shader_program(renderer->world_program)) {
                 return false;
             }
+
+            renderer->world_position_attribute =
+                glGetAttribLocation(renderer->world_program, "position");
         }
 
         glReleaseShaderCompiler();
@@ -305,18 +350,6 @@ int main(int argc, char *argv[])
                          GL_STATIC_DRAW);
 
             free(vertices);
-
-            glEnableVertexAttribArray(SCREEN_POSITION_ATTRIBUTE);
-            glEnableVertexAttribArray(SCREEN_TEXCOORD_ATTRIBUTE);
-
-            glVertexAttribPointer(SCREEN_POSITION_ATTRIBUTE,
-                                  POSITION_COMPONENTS, GL_FLOAT, GL_FALSE,
-                                  POSITION_BYTES + TEXCOORD_BYTES, 0);
-
-            glVertexAttribPointer(SCREEN_TEXCOORD_ATTRIBUTE,
-                                  TEXCOORD_COMPONENTS, GL_FLOAT, GL_FALSE,
-                                  POSITION_BYTES + TEXCOORD_BYTES,
-                                  (void *)POSITION_BYTES);
         }
 
         // Setup World VBO
@@ -335,13 +368,10 @@ int main(int argc, char *argv[])
             glBindBuffer(GL_ARRAY_BUFFER, renderer->world_vbo);
             glBufferData(GL_ARRAY_BUFFER, WORLD_TRIANGLE_BYTES, positions,
                          GL_STATIC_DRAW);
-
-            glEnableVertexAttribArray(WORLD_POSITION_ATTRIBUTE);
-
-            glVertexAttribPointer(WORLD_POSITION_ATTRIBUTE, POSITION_COMPONENTS,
-                                  GL_FLOAT, GL_FALSE, POSITION_BYTES, 0);
         }
     }
+
+    globals->timing.frame_start_time = emscripten_performance_now();
 
     emscripten_request_animation_frame_loop(main_loop, globals);
 
