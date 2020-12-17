@@ -126,12 +126,15 @@ int main(int argc, char *argv[])
         const char fragment_shader_code[] =
             "precision lowp float;\n"
             "varying vec2 varying_tex_coord;\n"
+            "uniform vec2 tex_dimensions;\n"
             "uniform sampler2D sampler;\n"
             "const float one = 1.0;\n"
             "\n"
             "void main()\n"
             "{\n"
-            "    vec4 t = texture2D(sampler, varying_tex_coord);\n"
+            "    vec2 tex_coord = vec2(varying_tex_coord.x / tex_dimensions.x, "
+            "varying_tex_coord.y / tex_dimensions.y);\n"
+            "    vec4 t = texture2D(sampler, tex_coord);\n"
             "    gl_FragColor = vec4(one, one, one, t.a);\n"
             "}";
 
@@ -148,53 +151,6 @@ int main(int argc, char *argv[])
 
         glUseProgram(renderer->program);
         glClearColor(0.1, 0.3, 0.5, 1.0);
-
-        // Uniforms
-        float l = 0.0f;
-        float b = globals->window_height;
-        float r = globals->window_width;
-        float t = 0.0f;
-
-        {
-            GLint location = glGetUniformLocation(renderer->program, "sampler");
-
-            glUniform1i(location, 0);
-
-            location = glGetUniformLocation(renderer->program, "projection");
-
-            float n = -1.0f;
-            float f = 1.0f;
-
-            // Orthographic projection matrix based on glOrtho:
-            // https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
-            float projection_matrix[] = {
-                // row 1
-                2.0f / (r - l),
-                0.0f,
-                0.0f,
-                -((r + l) / (r - l)),
-
-                // row 2
-                0.0f,
-                2.0f / (t - b),
-                0.0f,
-                -((t + b) / (t - b)),
-
-                // row 3
-                0.0f,
-                0.0f,
-                (-2.0f) / (f - n),
-                -((f + n) / (f - n)),
-
-                // row 4
-                0.0f,
-                0.0f,
-                0.0f,
-                1.0f,
-            };
-
-            glUniformMatrix4fv(location, 1, GL_FALSE, projection_matrix);
-        }
 
         // Setup Font
         FT_Library freetype;
@@ -296,40 +252,88 @@ int main(int argc, char *argv[])
         FT_Done_Face(face);
         FT_Done_FreeType(freetype);
 
+        // Uniforms
+        float l = 0.0f;
+        float b = globals->window_height;
+        float r = globals->window_width;
+        float t = 0.0f;
+
+        {
+            GLint location = glGetUniformLocation(renderer->program, "sampler");
+
+            glUniform1i(location, 0);
+
+            location =
+                glGetUniformLocation(renderer->program, "tex_dimensions");
+
+            glUniform2f(location, font.texture_width, font.texture_height);
+
+            location = glGetUniformLocation(renderer->program, "projection");
+
+            float n = -1.0f;
+            float f = 1.0f;
+
+            // Orthographic projection matrix based on glOrtho:
+            // https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
+            float projection_matrix[] = {
+                // row 1
+                2.0f / (r - l),
+                0.0f,
+                0.0f,
+                -((r + l) / (r - l)),
+
+                // row 2
+                0.0f,
+                2.0f / (t - b),
+                0.0f,
+                -((t + b) / (t - b)),
+
+                // row 3
+                0.0f,
+                0.0f,
+                (-2.0f) / (f - n),
+                -((f + n) / (f - n)),
+
+                // row 4
+                0.0f,
+                0.0f,
+                0.0f,
+                1.0f,
+            };
+
+            glUniformMatrix4fv(location, 1, GL_FALSE, projection_matrix);
+        }
+
         // Setup Vertices
         {
+            Glyph *glyph = &font.glyphs[1];
+
             float positions[] = {
-                font.texture_width,
-                font.texture_height,
+                glyph->width, glyph->height,
 
-                0.0f,
-                font.texture_height,
+                0.0f,         glyph->height,
 
-                0.0f,
-                0.0f,
+                0.0f,         0.0f,
 
-                font.texture_width,
-                font.texture_height,
+                glyph->width, glyph->height,
 
-                0.0f,
-                0.0f,
+                0.0f,         0.0f,
 
-                font.texture_width,
-                0.0f,
+                glyph->width, 0.0f,
             };
 
             float texcoords[] = {
-                1.0f, 1.0f,
+                glyph->width, glyph->height,
 
-                0.0f, 1.0f,
+                0.0f,         glyph->height,
 
-                0.0f, 0.0f,
+                0.0f,         0.0f,
 
-                1.0f, 1.0f,
+                glyph->width, glyph->height,
 
-                0.0f, 0.0f,
+                0.0f,         0.0f,
 
-                1.0f, 0.0f,
+                glyph->width, 0.0f,
             };
 
             globals->vertices = malloc(VERTEX_BYTES * QUAD_VERTICES);
