@@ -29,17 +29,36 @@
 typedef struct Renderer
 {
     GLuint program;
-    GLuint texture;
     GLuint buffer_object;
 } Renderer;
+
+typedef struct Glyph
+{
+    int width;
+    int height;
+    int advance;
+    int bearing_x;
+    int bearing_y;
+} Glyph;
+
+typedef struct Font
+{
+    Glyph *glyphs;
+    int glyphs_size;
+    int texture_width;
+    int texture_height;
+    GLuint texture;
+} Font;
 
 typedef struct Globals
 {
     SDL sdl;
     Renderer renderer;
+    float *vertices;
+    char *visible_ascii;
+    int visible_ascii_size;
     int window_width;
     int window_height;
-    float *vertices;
 } Globals;
 
 EM_BOOL main_loop(double time, void *user_data)
@@ -180,6 +199,7 @@ int main(int argc, char *argv[])
         // Setup Font
         FT_Library freetype;
         FT_Face face;
+        Font font = {0};
         {
             // TODO get proper error messages for freetype functions
 
@@ -194,38 +214,83 @@ int main(int argc, char *argv[])
             error = FT_Set_Char_Size(face, 100 * 64, 0, 100, 0);
             if (error) printf("FT_New_Face: %d\n ", error);
 
-            int glyph_index = FT_Get_Char_Index(face, 'Q');
+            globals->visible_ascii_size = '~' - ' ' + 1;
+            globals->visible_ascii = malloc(globals->visible_ascii_size);
 
-            error = FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT);
-            if (error) printf("FT_Load_Glyph: %d\n ", error);
+            font.glyphs_size = globals->visible_ascii_size;
+            font.glyphs = malloc(font.glyphs_size * sizeof(*font.glyphs));
 
-            error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
-            if (error) printf("FT_Render_Glyph: %d\n ", error);
+            Glyph *glyph = font.glyphs;
+
+            int glyph_index;
+            for (int i = 0; i < globals->visible_ascii_size; ++i, ++glyph) {
+                globals->visible_ascii[i] = ' ' + i;
+
+                glyph_index =
+                    FT_Get_Char_Index(face, globals->visible_ascii[i]);
+
+                error = FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT);
+                if (error) printf("FT_Load_Glyph: %d\n ", error);
+
+                glyph->width = face->glyph->metrics.width >> 6;
+                glyph->height = face->glyph->metrics.height >> 6;
+                glyph->advance = face->glyph->metrics.horiAdvance >> 6;
+                glyph->bearing_x = face->glyph->metrics.horiBearingX >> 6;
+                glyph->bearing_y = face->glyph->metrics.horiBearingY >> 6;
+
+                font.texture_width += glyph->width;
+
+                if (glyph->height > font.texture_height) {
+                    font.texture_height = glyph->height;
+                }
+            }
+
+            font.texture_width = round_up_to_power_of_two(font.texture_width);
+            font.texture_height = round_up_to_power_of_two(font.texture_height);
         }
 
         // Setup Texture
-        int glyph_width;
-        int glyph_height;
         {
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-            glGenTextures(1, &renderer->texture);
+            glGenTextures(1, &font.texture);
 
             glActiveTexture(GL_TEXTURE0);
 
-            glBindTexture(GL_TEXTURE_2D, renderer->texture);
+            glBindTexture(GL_TEXTURE_2D, font.texture);
 
-            glyph_width = face->glyph->bitmap.width;
-            glyph_height = face->glyph->bitmap.rows;
-
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, glyph_width, glyph_height,
-                         0, GL_ALPHA, GL_UNSIGNED_BYTE,
-                         face->glyph->bitmap.buffer);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, font.texture_width,
+                         font.texture_height, 0, GL_ALPHA, GL_UNSIGNED_BYTE,
+                         NULL);
 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            Glyph *glyph = font.glyphs;
+            int glyph_index;
+            int x = 0;
+            int error;
+            for (int i = 0; i < globals->visible_ascii_size; ++i, ++glyph) {
+                if (glyph->width == 0 || glyph->height == 0) continue;
+
+                glyph_index =
+                    FT_Get_Char_Index(face, globals->visible_ascii[i]);
+
+                error = FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT);
+                if (error) printf("FT_Load_Glyph: %d\n ", error);
+
+                error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
+                if (error) printf("FT_Render_Glyph: %d\n ", error);
+
+                glTexSubImage2D(GL_TEXTURE_2D, 0, x, 0,
+                                face->glyph->bitmap.width,
+                                face->glyph->bitmap.rows, GL_ALPHA,
+                                GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
+
+                x += face->glyph->bitmap.width;
+            }
         }
 
         FT_Done_Face(face);
@@ -234,17 +299,23 @@ int main(int argc, char *argv[])
         // Setup Vertices
         {
             float positions[] = {
-                glyph_width, glyph_height,
+                font.texture_width,
+                font.texture_height,
 
-                0.0f,        glyph_height,
+                0.0f,
+                font.texture_height,
 
-                0.0f,        0.0f,
+                0.0f,
+                0.0f,
 
-                glyph_width, glyph_height,
+                font.texture_width,
+                font.texture_height,
 
-                0.0f,        0.0f,
+                0.0f,
+                0.0f,
 
-                glyph_width, 0.0f,
+                font.texture_width,
+                0.0f,
             };
 
             float texcoords[] = {
