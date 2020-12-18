@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_mixer.h>
 #include <GLES2/gl2.h>
 
 typedef struct SDL
@@ -7,7 +8,32 @@ typedef struct SDL
     SDL_GLContext *glcontext;
     const Uint8 *keyboard_state;
     int keyboard_state_size;
+    bool mixer_initialised;
 } SDL;
+
+bool setup_sdl_mixer(SDL *sdl, int frequency)
+{
+    if (Mix_OpenAudio(frequency, MIX_DEFAULT_FORMAT, 2, 4096) == -1) {
+        fprintf(stderr, "setup_sdl_mixer: Mix_OpenAudio: %s\n", Mix_GetError());
+        return false;
+    }
+
+    Mix_Init(MIX_INIT_OGG);
+    if (!(Mix_Init(MIX_INIT_OGG) & MIX_INIT_OGG)) {
+        fprintf(stderr, "setup_sdl_mixer: Mix_Init: %s\n", Mix_GetError());
+        return false;
+    }
+
+    sdl->mixer_initialised = true;
+
+    return true;
+}
+
+void cleanup_sdl_mixer()
+{
+    Mix_Quit();
+    Mix_CloseAudio();
+}
 
 bool setup_sdl(SDL *sdl, int window_width, int window_height)
 {
@@ -41,6 +67,10 @@ bool setup_sdl(SDL *sdl, int window_width, int window_height)
 
 void cleanup_sdl(const SDL *sdl)
 {
+    if (sdl->mixer_initialised) {
+        cleanup_sdl_mixer();
+    }
+
     SDL_GL_DeleteContext(sdl->glcontext);
     SDL_DestroyWindow(sdl->window);
     SDL_Quit();
