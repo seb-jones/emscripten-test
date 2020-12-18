@@ -55,6 +55,7 @@ typedef struct Font
     int texture_width;
     int texture_height;
     GLuint texture;
+    float line_height;
 } Font;
 
 typedef struct Globals
@@ -72,19 +73,21 @@ void draw_quad(Renderer *renderer, float x, float y, float w, float h,
                float tex_x, float tex_y, float tex_w, float tex_h)
 {
     // TODO unroll and simplify this function
+    float r = x + w;
+    float t = y + h;
 
     float positions[] = {
-        w, h,
+        r, t,
 
-        x, h,
-
-        x, y,
-
-        w, h,
+        x, t,
 
         x, y,
 
-        w, y,
+        r, t,
+
+        x, y,
+
+        r, y,
     };
 
     float tex_r = tex_x + tex_w;
@@ -123,12 +126,29 @@ void draw_quad(Renderer *renderer, float x, float y, float w, float h,
     ++renderer->quad_count;
 }
 
-void draw_glyph(Renderer *renderer, Font *font, int c, float x, float y)
+void draw_glyph(Renderer *renderer, Font *font, Glyph *glyph, float x, float y)
 {
-    Glyph *glyph = &font->glyphs[c - ' '];
-
     draw_quad(renderer, x, y, glyph->width, glyph->height, glyph->texture_x, 0,
               glyph->width, glyph->height);
+}
+
+void draw_string(Renderer *renderer, Font *font, const char *s, float x,
+                 float y)
+{
+    Glyph *glyph;
+    float px = x;
+    float py = y;
+
+    while (*s) {
+        glyph = &font->glyphs[*s - ' '];
+
+        draw_glyph(renderer, font, glyph, px + glyph->bearing_x,
+                   py + font->line_height - glyph->bearing_y);
+
+        px += glyph->advance;
+
+        ++s;
+    }
 }
 
 EM_BOOL main_loop(double time, void *user_data)
@@ -149,11 +169,12 @@ EM_BOOL main_loop(double time, void *user_data)
 
         renderer->quad_count = 0;
 
-        draw_glyph(renderer, &globals->font, '%', 0, 0);
+        draw_string(renderer, &globals->font, "Meep", 0, 0);
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glBufferSubData(GL_ARRAY_BUFFER, 0, QUAD_BYTES, renderer->vertices);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, renderer->quad_count * QUAD_BYTES,
+                        renderer->vertices);
 
         glDrawArrays(GL_TRIANGLES, 0, renderer->quad_count * QUAD_VERTICES);
 
@@ -243,6 +264,8 @@ int main(int argc, char *argv[])
             /* use 50pt at 100dpi */
             error = FT_Set_Char_Size(face, 100 * 64, 0, 100, 0);
             if (error) printf("FT_New_Face: %d\n ", error);
+
+            font->line_height = face->size->metrics.height >> 6;
 
             globals->visible_ascii_size = '~' - ' ' + 1;
             globals->visible_ascii = malloc(globals->visible_ascii_size);
@@ -395,7 +418,8 @@ int main(int argc, char *argv[])
         {
             glGenBuffers(1, &renderer->buffer_object);
             glBindBuffer(GL_ARRAY_BUFFER, renderer->buffer_object);
-            glBufferData(GL_ARRAY_BUFFER, QUAD_BYTES, NULL, GL_DYNAMIC_DRAW);
+            glBufferData(GL_ARRAY_BUFFER, MAX_QUAD_BYTES, NULL,
+                         GL_DYNAMIC_DRAW);
 
             glEnableVertexAttribArray(POSITION_ATTRIBUTE_LOCATION);
             glEnableVertexAttribArray(TEXCOORD_ATTRIBUTE_LOCATION);
