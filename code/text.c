@@ -215,9 +215,13 @@ int main(int argc, char *argv[])
 
             glBindTexture(GL_TEXTURE_2D, font.texture);
 
+            char *data = malloc(font.texture_width * font.texture_height);
+
             glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, font.texture_width,
                          font.texture_height, 0, GL_ALPHA, GL_UNSIGNED_BYTE,
-                         NULL);
+                         data);
+
+            free(data);
 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
