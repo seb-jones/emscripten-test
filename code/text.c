@@ -24,16 +24,23 @@
 #define VERTEX_COMPONENTS (POSITION_COMPONENTS + TEXCOORD_COMPONENTS)
 #define VERTEX_BYTES (VERTEX_COMPONENTS * COMPONENT_BYTES)
 #define QUAD_VERTICES 6
+#define QUAD_COMPONENTS                                                        \
+    (QUAD_VERTICES * (POSITION_COMPONENTS + TEXCOORD_COMPONENTS))
 #define QUAD_BYTES (QUAD_VERTICES * VERTEX_BYTES)
+#define MAX_QUADS 20
+#define MAX_QUAD_BYTES (MAX_QUADS * QUAD_BYTES)
 
 typedef struct Renderer
 {
     GLuint program;
     GLuint buffer_object;
+    float *vertices;
+    int quad_count;
 } Renderer;
 
 typedef struct Glyph
 {
+    int texture_x;
     int width;
     int height;
     int advance;
@@ -54,12 +61,75 @@ typedef struct Globals
 {
     SDL sdl;
     Renderer renderer;
-    float *vertices;
+    Font font;
     char *visible_ascii;
     int visible_ascii_size;
     int window_width;
     int window_height;
 } Globals;
+
+void draw_quad(Renderer *renderer, float x, float y, float w, float h,
+               float tex_x, float tex_y, float tex_w, float tex_h)
+{
+    // TODO unroll and simplify this function
+
+    float positions[] = {
+        w, h,
+
+        x, h,
+
+        x, y,
+
+        w, h,
+
+        x, y,
+
+        w, y,
+    };
+
+    float tex_r = tex_x + tex_w;
+    float tex_t = tex_y + tex_h;
+
+    float texcoords[] = {
+        tex_r, tex_t,
+
+        tex_x, tex_t,
+
+        tex_x, tex_y,
+
+        tex_r, tex_t,
+
+        tex_x, tex_y,
+
+        tex_r, tex_y,
+    };
+
+    float *vertex =
+        renderer->vertices + (renderer->quad_count * QUAD_COMPONENTS);
+    float *position = positions;
+    float *texcoord = texcoords;
+
+    for (int i = 0; i < QUAD_VERTICES; ++i) {
+        vertex[0] = position[0];
+        vertex[1] = position[1];
+        vertex[2] = texcoord[0];
+        vertex[3] = texcoord[1];
+
+        vertex += VERTEX_COMPONENTS;
+        position += POSITION_COMPONENTS;
+        texcoord += TEXCOORD_COMPONENTS;
+    }
+
+    ++renderer->quad_count;
+}
+
+void draw_glyph(Renderer *renderer, Font *font, int c, float x, float y)
+{
+    Glyph *glyph = &font->glyphs[c - ' '];
+
+    draw_quad(renderer, x, y, glyph->width, glyph->height, glyph->texture_x, 0,
+              glyph->width, glyph->height);
+}
 
 EM_BOOL main_loop(double time, void *user_data)
 {
@@ -77,11 +147,15 @@ EM_BOOL main_loop(double time, void *user_data)
     {
         Renderer *renderer = &globals->renderer;
 
+        renderer->quad_count = 0;
+
+        draw_glyph(renderer, &globals->font, '%', 0, 0);
+
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glBufferSubData(GL_ARRAY_BUFFER, 0, QUAD_BYTES, globals->vertices);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, QUAD_BYTES, renderer->vertices);
 
-        glDrawArrays(GL_TRIANGLES, 0, QUAD_VERTICES);
+        glDrawArrays(GL_TRIANGLES, 0, renderer->quad_count * QUAD_VERTICES);
 
         SDL_GL_SwapWindow(sdl->window);
     }
@@ -155,7 +229,7 @@ int main(int argc, char *argv[])
         // Setup Font
         FT_Library freetype;
         FT_Face face;
-        Font font = {0};
+        Font *font = &globals->font;
         {
             // TODO get proper error messages for freetype functions
 
@@ -173,10 +247,10 @@ int main(int argc, char *argv[])
             globals->visible_ascii_size = '~' - ' ' + 1;
             globals->visible_ascii = malloc(globals->visible_ascii_size);
 
-            font.glyphs_size = globals->visible_ascii_size;
-            font.glyphs = malloc(font.glyphs_size * sizeof(*font.glyphs));
+            font->glyphs_size = globals->visible_ascii_size;
+            font->glyphs = malloc(font->glyphs_size * sizeof(*font->glyphs));
 
-            Glyph *glyph = font.glyphs;
+            Glyph *glyph = font->glyphs;
 
             int glyph_index;
             for (int i = 0; i < globals->visible_ascii_size; ++i, ++glyph) {
@@ -194,31 +268,32 @@ int main(int argc, char *argv[])
                 glyph->bearing_x = face->glyph->metrics.horiBearingX >> 6;
                 glyph->bearing_y = face->glyph->metrics.horiBearingY >> 6;
 
-                font.texture_width += glyph->width;
+                font->texture_width += glyph->width;
 
-                if (glyph->height > font.texture_height) {
-                    font.texture_height = glyph->height;
+                if (glyph->height > font->texture_height) {
+                    font->texture_height = glyph->height;
                 }
             }
 
-            font.texture_width = round_up_to_power_of_two(font.texture_width);
-            font.texture_height = round_up_to_power_of_two(font.texture_height);
+            font->texture_width = round_up_to_power_of_two(font->texture_width);
+            font->texture_height =
+                round_up_to_power_of_two(font->texture_height);
         }
 
         // Setup Texture
         {
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-            glGenTextures(1, &font.texture);
+            glGenTextures(1, &font->texture);
 
             glActiveTexture(GL_TEXTURE0);
 
-            glBindTexture(GL_TEXTURE_2D, font.texture);
+            glBindTexture(GL_TEXTURE_2D, font->texture);
 
-            char *data = malloc(font.texture_width * font.texture_height);
+            char *data = malloc(font->texture_width * font->texture_height);
 
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, font.texture_width,
-                         font.texture_height, 0, GL_ALPHA, GL_UNSIGNED_BYTE,
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, font->texture_width,
+                         font->texture_height, 0, GL_ALPHA, GL_UNSIGNED_BYTE,
                          data);
 
             free(data);
@@ -228,7 +303,7 @@ int main(int argc, char *argv[])
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-            Glyph *glyph = font.glyphs;
+            Glyph *glyph = font->glyphs;
             int glyph_index;
             int x = 0;
             int error;
@@ -248,6 +323,8 @@ int main(int argc, char *argv[])
                                 face->glyph->bitmap.width,
                                 face->glyph->bitmap.rows, GL_ALPHA,
                                 GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
+
+                glyph->texture_x = x;
 
                 x += face->glyph->bitmap.width;
             }
@@ -270,7 +347,7 @@ int main(int argc, char *argv[])
             location =
                 glGetUniformLocation(renderer->program, "tex_dimensions");
 
-            glUniform2f(location, font.texture_width, font.texture_height);
+            glUniform2f(location, font->texture_width, font->texture_height);
 
             location = glGetUniformLocation(renderer->program, "projection");
 
@@ -310,52 +387,8 @@ int main(int argc, char *argv[])
 
         // Setup Vertices
         {
-            Glyph *glyph = &font.glyphs[1];
-
-            float positions[] = {
-                glyph->width, glyph->height,
-
-                0.0f,         glyph->height,
-
-                0.0f,         0.0f,
-
-                glyph->width, glyph->height,
-
-                0.0f,         0.0f,
-
-                glyph->width, 0.0f,
-            };
-
-            float texcoords[] = {
-                glyph->width, glyph->height,
-
-                0.0f,         glyph->height,
-
-                0.0f,         0.0f,
-
-                glyph->width, glyph->height,
-
-                0.0f,         0.0f,
-
-                glyph->width, 0.0f,
-            };
-
-            globals->vertices = malloc(VERTEX_BYTES * QUAD_VERTICES);
-
-            float *vertex = globals->vertices;
-            float *position = positions;
-            float *texcoord = texcoords;
-
-            for (int i = 0; i < QUAD_VERTICES; ++i) {
-                vertex[0] = position[0];
-                vertex[1] = position[1];
-                vertex[2] = texcoord[0];
-                vertex[3] = texcoord[1];
-
-                vertex += VERTEX_COMPONENTS;
-                position += POSITION_COMPONENTS;
-                texcoord += TEXCOORD_COMPONENTS;
-            }
+            renderer->vertices = malloc(MAX_QUAD_BYTES);
+            renderer->quad_count = 0;
         }
 
         // Setup Vertex Buffer Object
