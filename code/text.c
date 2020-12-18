@@ -15,6 +15,7 @@
 #include "maths.c"
 #include "sdl.c"
 #include "gl.c"
+#include "timing.c"
 
 #define POSITION_ATTRIBUTE_LOCATION 0
 #define TEXCOORD_ATTRIBUTE_LOCATION 1
@@ -63,6 +64,7 @@ typedef struct Globals
     SDL sdl;
     Renderer renderer;
     Font font;
+    Timing timing;
     char *visible_ascii;
     int visible_ascii_size;
     int window_width;
@@ -155,6 +157,8 @@ EM_BOOL main_loop(double time, void *user_data)
 {
     Globals *globals = (Globals *)user_data;
 
+    double dt = update_timing(&globals->timing, time);
+
     SDL_PumpEvents();
 
     SDL *sdl = &globals->sdl;
@@ -169,7 +173,10 @@ EM_BOOL main_loop(double time, void *user_data)
 
         renderer->quad_count = 0;
 
-        draw_string(renderer, &globals->font, "Meep", 0, 0);
+        static char string[100];
+        snprintf(string, 100, "FPS: %d", globals->timing.current_fps);
+
+        draw_string(renderer, &globals->font, string, 0, 0);
 
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -181,8 +188,9 @@ EM_BOOL main_loop(double time, void *user_data)
         SDL_GL_SwapWindow(sdl->window);
     }
 
-    return EM_FALSE;
-    /* return EM_TRUE; */
+    ++globals->timing.fps;
+
+    return EM_TRUE;
 }
 
 int main(int argc, char *argv[])
@@ -262,7 +270,7 @@ int main(int argc, char *argv[])
             if (error) printf("FT_New_Face: %d\n ", error);
 
             /* use 50pt at 100dpi */
-            error = FT_Set_Char_Size(face, 100 * 64, 0, 100, 0);
+            error = FT_Set_Char_Size(face, 30 * 64, 0, 100, 0);
             if (error) printf("FT_New_Face: %d\n ", error);
 
             font->line_height = face->size->metrics.height >> 6;
@@ -434,6 +442,8 @@ int main(int argc, char *argv[])
                 (const void *)(POSITION_COMPONENTS * COMPONENT_BYTES));
         }
     }
+
+    globals->timing.frame_start_time = emscripten_performance_now();
 
     emscripten_request_animation_frame_loop(main_loop, globals);
 

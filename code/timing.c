@@ -6,6 +6,7 @@ typedef struct Timing
     double previous_frame_start_time;
     double fps_timer;
     int fps;
+    int current_fps;
 } Timing;
 
 double update_timing(Timing *timing, double time)
@@ -17,7 +18,7 @@ double update_timing(Timing *timing, double time)
 
     timing->fps_timer += dt;
     while (timing->fps_timer >= ONE_SECOND) {
-        printf("FPS: %d; DT: %f\n", timing->fps, dt);
+        timing->current_fps = timing->fps;
         timing->fps_timer -= ONE_SECOND;
         timing->fps = 0;
     }
